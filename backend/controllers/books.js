@@ -2,7 +2,7 @@ import book from "../models/books.js";
 
 const registerBook = async (req, res) => {
     //name, author, yearPublication, registerDate, pages, gender, price
-  if (!req.body.name || !req.body.author || !req.body.yearPublication || !req.body.pages || !req.body.gender || !req.body.price )
+  if (!req.body.name)
     return res.status(400).send("Incomplete Data");
   const existingBook = await book.findOne({ name: req.body.name });
   if (existingBook) return res.status(400).send("The Book already exist");
@@ -32,7 +32,7 @@ const listBook = async (req , res) =>{
 }
 
 const updateBook = async (req, res) => {
-  if (!req.body.name || !req.body.author || !req.body.yearPublication || !req.body.pages || !req.body.gender || !req.body.price)
+  if (!req.body.name)
     return res.status(400).send("Incomplete data");
 
   const existingBook = await book.findOne({
