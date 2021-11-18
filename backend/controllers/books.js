@@ -31,6 +31,13 @@ const listBook = async (req , res) =>{
  return !bookSchema || bookSchema.length == 0 ? res.status(400).send("Empty book list") : res.status(200).send({bookSchema});
 }
 
+const findBook = async (req, res) => {
+  const bookId = await book.findById({ _id: req.params["_id"] });
+  return !bookId
+    ? res.status(400).send({ message: "No search results" })
+    : res.status(200).send({ bookId });
+};
+
 const updateBook = async (req, res) => {
   if (!req.body.name)
     return res.status(400).send("Incomplete data");
@@ -66,4 +73,4 @@ const deleteBook = async (req, res) => {
     : res.status(200).send("book deleted");
 };
 
-export default { registerBook, listBook, updateBook, deleteBook };
+export default { registerBook, listBook, findBook, updateBook, deleteBook };

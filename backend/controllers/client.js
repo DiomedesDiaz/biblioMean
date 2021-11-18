@@ -1,4 +1,5 @@
 import client from "../models/client.js";
+import role from "../models/role.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import moment from "moment";
@@ -8,21 +9,70 @@ const registerClient = async (req, res) => {
   if (!req.body.name || !req.body.email || !req.body.password)
     return res.status(400).send("Incomplete Data");
 
-  const existingClient = await client.findOne({ name: req.body.name });
-  if (existingClient) return res.status(400).send({message: "The client already exist"});
+  const existingClient = await client.findOne({ email: req.body.email });
+  if (existingClient)
+    return res.status(400).send({ message: "The client already exist" });
 
-  const hash = await bcrypt.hash(req.body.password, 10);
+  const roleId = await role.findOne({ name: "user" });
+  if (!role) return res.status(400).send({ message: "No role was assigned" });
+
+  const passHash = await bcrypt.hash(req.body.password, 10);
 
   const clientSchema = new client({
     name: req.body.name,
     email: req.body.email,
-    password: hash,
+    password: passHash,
+    roleId: roleId._id,
     dbStatus: true,
   });
 
   const result = await clientSchema.save();
-  if (!result) return res.status(400).send("Failed to register client");
-  return res.status(200).send({ result });
+  // if (!result) return res.status(400).send("Failed to register client");
+  // return res.status(200).send({ result });
+  try {
+    return res.status(200).json({
+      token: jwt.sign(
+        {
+          _id: result._id,
+          name: result.name,
+          roleId: result.roleId,
+          iat: moment().unix(),
+        },
+        process.env.SECRET_KEY_JWT
+      ),
+    });
+  } catch (e) {
+    return res.status(400).send({ message: "Login error" });
+  }
+};
+
+const registerAdmin = async (req, res) => {
+  if (
+    !req.body.name ||
+    !req.body.email ||
+    !req.body.password ||
+    !req.body.roleId
+  )
+    return res.status(400).send({ message: "Incomplete data" });
+
+  const existingAdmin = await client.findOne({ email: req.body.email });
+  if (existingAdmin)
+    return res.status(400).send({ message: "The user is already registered" });
+
+  const passHash = await bcrypt.hash(req.body.password, 10);
+
+  const adminRegister = new client({
+    name: req.body.name,
+    email: req.body.email,
+    password: passHash,
+    roleId: req.body.roleId,
+    dbStatus: true,
+  });
+
+  const result = await adminRegister.save();
+  return !result
+    ? res.status(400).send({ message: "Failed to register user" })
+    : res.status(200).send({ result });
 };
 
 const listClient = async (req, res) => {
@@ -36,31 +86,37 @@ const updateClient = async (req, res) => {
   if (!req.body.name || !req.body.email)
     return res.status(400).send("Incomplete data");
 
+  const changeEmail = await client.findById({ _id: req.body._id });
+  if (req.body.email !== changeEmail.email)
+    return res
+      .status(400)
+      .send({ message: "The email should never be changed" });
+
   let pass = "";
 
   if (req.body.password) {
-    pass = await bcrypt.hash(req.body.password, 10)
+    pass = await bcrypt.hash(req.body.password, 10);
   } else {
     const clientFind = await client.findOne({ email: req.body.email });
     pass = clientFind.password;
   }
 
-  // Validamos el correo del usuario
-  const existingEmail = await client.findOne({ email: req.body.email });
-  if (!existingEmail) {
-    // si el email no existe sacamos el siguiente mensaje (significa que lo cambio y no se puede)
-    return res.status(400).send({ message: "Email cannot be changed" });
-  } else {
-    // si existe y el id pertenece a otro usuario sacamos el siguiente mensaje
-    if (existingEmail._id != req.body._id)
-      return res
-        .status(400)
-        .send({ message: "the email already belongs to another client" });
-  }
+  // // Validamos el correo del usuario
+  // const existingEmail = await client.findOne({ email: req.body.email });
+  // if (!existingEmail) {
+  //   // si el email no existe sacamos el siguiente mensaje (significa que lo cambio y no se puede)
+  //   return res.status(400).send({ message: "Email cannot be changed" });
+  // } else {
+  //   // si existe y el id pertenece a otro usuario sacamos el siguiente mensaje
+  //   if (existingEmail._id != req.body._id)
+  //     return res
+  //       .status(400)
+  //       .send({ message: "the email already belongs to another client" });
 
   const existingClient = await client.findOne({
     name: req.body.name,
     email: req.body.email,
+    roleId: req.body.roleId,
   });
   if (existingClient)
     return res.status(400).send("You didn't make any changes");
@@ -69,6 +125,7 @@ const updateClient = async (req, res) => {
     name: req.body.name,
     email: req.body.email,
     password: pass,
+    roleId: req.body.roleId,
   });
 
   return !clientUpdate
@@ -113,6 +170,7 @@ const login = async (req, res) => {
         {
           _id: clientLogin._id,
           name: clientLogin.name,
+          roleId: clientLogin.roleId,
           iat: moment().unix(),
         },
         process.env.SECRET_KEY_JWT
@@ -125,6 +183,7 @@ const login = async (req, res) => {
 
 export default {
   registerClient,
+  registerAdmin,
   listClient,
   updateClient,
   findClient,
